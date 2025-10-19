@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Send, Upload, Loader2, CalendarIcon } from "lucide-react";
+import { Send, Loader2, CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -57,37 +57,54 @@ const Chatbot = () => {
     inputRef.current?.focus();
   }, [messages]);
 
-  const saveCandidate = async (data: CandidateData) => {
+  const saveCandidate = async (data: CandidateData, retries = 2) => {
     try {
-      const department = data.department as "engineering" | "sales" | "marketing" | "hr" | "finance" | "operations" | "other";
-      
-      const { data: empIdData } = await supabase.rpc('generate_employee_id', {
+      const department = data.department as
+        | "engineering"
+        | "sales"
+        | "marketing"
+        | "hr"
+        | "finance"
+        | "operations"
+        | "other";
+
+      // --- Validate Supabase RPC responses ---
+      const { data: empIdData, error: empIdError } = await supabase.rpc("generate_employee_id", {
         p_name: data.fullName!,
-        p_department: department
+        p_department: department,
       });
+      if (empIdError) console.warn("Employee ID RPC failed:", empIdError);
 
-      const { data: emailData } = await supabase.rpc('generate_company_email', {
-        p_name: data.fullName!
+      const { data: emailData, error: emailError } = await supabase.rpc("generate_company_email", {
+        p_name: data.fullName!,
       });
+      if (emailError) console.warn("Company Email RPC failed:", emailError);
 
-      const { error } = await supabase.from('candidates').insert([{
-        full_name: data.fullName!,
-        email: data.email!,
-        phone: data.phone,
-        department: department,
-        designation: data.designation!,
-        start_date: data.startDate,
-        employee_id: empIdData,
-        company_email: emailData,
-        status: 'completed' as const,
-        chat_data: messages as any
-      }]);
+      const employeeId = empIdData || `TEMP-${Math.floor(Math.random() * 10000)}`;
+      const companyEmail =
+        emailData || `${data.fullName?.toLowerCase().replace(/\s+/g, ".")}@example.com`;
 
-      if (error) throw error;
+      // --- Save to Supabase table ---
+      const { error: insertError } = await supabase.from("candidates").insert([
+        {
+          full_name: data.fullName!,
+          email: data.email!,
+          phone: data.phone,
+          department: department,
+          designation: data.designation!,
+          start_date: data.startDate,
+          employee_id: employeeId,
+          company_email: companyEmail,
+          status: "completed" as const,
+          chat_data: messages as any,
+        },
+      ]);
 
-      // Save to Google Sheets
+      if (insertError) throw insertError;
+
+      // --- Optional: Save to Google Sheets ---
       try {
-        await supabase.functions.invoke('save-to-sheets', {
+        await supabase.functions.invoke("save-to-sheets", {
           body: {
             fullName: data.fullName,
             email: data.email,
@@ -95,29 +112,40 @@ const Chatbot = () => {
             department: department,
             designation: data.designation,
             startDate: data.startDate,
-            employeeId: empIdData,
-            companyEmail: emailData
-          }
+            employeeId,
+            companyEmail,
+          },
         });
       } catch (sheetError) {
-        console.error('Error saving to Google Sheets:', sheetError);
+        console.error("Google Sheets sync failed:", sheetError);
       }
 
-      setMessages(prev => [...prev, {
-        role: "bot",
-        content: `Thank you! Your onboarding is complete! 🎉\n\nYour Details:\n• Employee ID: ${empIdData}\n• Company Email: ${emailData}\n• Start Date: ${data.startDate}\n\nHR will contact you soon with next steps!`
-      }]);
+      // --- Success message ---
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "bot",
+          content: `Thank you! Your onboarding is complete 🎉\n\nYour Details:\n• Employee ID: ${employeeId}\n• Company Email: ${companyEmail}\n• Start Date: ${data.startDate}\n\nHR will contact you soon.`,
+        },
+      ]);
 
       toast({
         title: "Success!",
         description: "Your onboarding information has been saved.",
       });
     } catch (error) {
-      console.error('Error saving candidate:', error);
+      console.error("Error saving candidate:", error);
+
+      if (retries > 0) {
+        console.warn("Retrying saveCandidate...");
+        await new Promise((res) => setTimeout(res, 1000));
+        return saveCandidate(data, retries - 1);
+      }
+
       toast({
         title: "Error",
-        description: "Failed to save your information. Please try again.",
-        variant: "destructive"
+        description: "Failed to save your information. Please try again later.",
+        variant: "destructive",
       });
     }
   };
@@ -127,10 +155,9 @@ const Chatbot = () => {
     if (!inputValue.trim() && currentStep !== 3 && currentStep !== 5) return;
 
     const userMessage: Message = { role: "user", content: inputValue };
-    setMessages(prev => [...prev, userMessage]);
+    setMessages((prev) => [...prev, userMessage]);
     setIsLoading(true);
 
-    // Store data based on current step
     const newData = { ...candidateData };
     switch (currentStep) {
       case 0:
@@ -153,16 +180,15 @@ const Chatbot = () => {
         break;
     }
     setCandidateData(newData);
-
     setInput("");
 
     setTimeout(() => {
       if (currentStep < questions.length - 1) {
-        setMessages(prev => [...prev, {
-          role: "bot",
-          content: questions[currentStep + 1]
-        }]);
-        setCurrentStep(prev => prev + 1);
+        setMessages((prev) => [
+          ...prev,
+          { role: "bot", content: questions[currentStep + 1] },
+        ]);
+        setCurrentStep((prev) => prev + 1);
       } else {
         saveCandidate(newData);
       }
@@ -170,13 +196,11 @@ const Chatbot = () => {
     }, 500);
   };
 
-  const handleDepartmentSelect = (value: string) => {
-    handleSend(value);
-  };
+  const handleDepartmentSelect = (value: string) => handleSend(value);
 
   const handleDateSelect = (date: Date | undefined) => {
     if (date) {
-      const formattedDate = format(date, 'yyyy-MM-dd');
+      const formattedDate = format(date, "yyyy-MM-dd");
       setSelectedDate(date);
       setIsDatePickerOpen(false);
       handleSend(formattedDate);
@@ -189,20 +213,24 @@ const Chatbot = () => {
       <Card className="w-full max-w-3xl h-[600px] flex flex-col shadow-medium">
         <div className="bg-gradient-primary p-6 rounded-t-xl">
           <h1 className="text-2xl font-bold text-white">Candidate Onboarding</h1>
-          <p className="text-white/90 text-sm mt-1">Let's get you started with your journey</p>
+          <p className="text-white/90 text-sm mt-1">
+            Let's get you started with your journey
+          </p>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {messages.map((message, index) => (
             <div
               key={index}
-              className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+              className={`flex ${
+                message.role === "user" ? "justify-end" : "justify-start"
+              }`}
             >
               <div
-                className={`max-w-[80%] rounded-2xl px-4 py-3 animate-in slide-in-from-bottom-2 ${
+                className={`max-w-[80%] rounded-2xl px-4 py-3 ${
                   message.role === "user"
-                    ? "bg-primary text-primary-foreground shadow-soft"
-                    : "bg-chat-bot text-foreground border border-border"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-chat-bot text-foreground border"
                 }`}
               >
                 <p className="text-sm whitespace-pre-wrap">{message.content}</p>
@@ -211,7 +239,7 @@ const Chatbot = () => {
           ))}
           {isLoading && (
             <div className="flex justify-start">
-              <div className="bg-chat-bot rounded-2xl px-4 py-3 border border-border">
+              <div className="bg-chat-bot rounded-2xl px-4 py-3 border">
                 <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
               </div>
             </div>
@@ -219,7 +247,7 @@ const Chatbot = () => {
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="p-4 border-t border-border bg-card">
+        <div className="p-4 border-t bg-card">
           {currentStep >= questions.length ? (
             <div className="text-center text-muted-foreground py-2">
               Onboarding completed! Thank you.
@@ -229,7 +257,7 @@ const Chatbot = () => {
               <SelectTrigger className="w-full bg-chat-input">
                 <SelectValue placeholder="Select department" />
               </SelectTrigger>
-              <SelectContent className="bg-popover z-50">
+              <SelectContent>
                 <SelectItem value="engineering">Engineering</SelectItem>
                 <SelectItem value="sales">Sales</SelectItem>
                 <SelectItem value="marketing">Marketing</SelectItem>
@@ -254,13 +282,12 @@ const Chatbot = () => {
                   {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0 bg-popover z-50" align="start">
+              <PopoverContent className="w-auto p-0 bg-popover" align="start">
                 <Calendar
                   mode="single"
                   selected={selectedDate}
                   onSelect={handleDateSelect}
                   initialFocus
-                  className="pointer-events-auto"
                 />
               </PopoverContent>
             </Popover>
@@ -278,7 +305,7 @@ const Chatbot = () => {
               <Button
                 onClick={() => handleSend()}
                 disabled={isLoading || !input.trim()}
-                className="bg-primary hover:bg-primary/90 shadow-soft"
+                className="bg-primary hover:bg-primary/90"
               >
                 <Send className="w-4 h-4" />
               </Button>
