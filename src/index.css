@@ -1,0 +1,105 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 240 20% 99%;
+    --foreground: 240 10% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 10%;
+
+    --primary: 199 89% 48%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 204 94% 94%;
+
+    --secondary: 240 5% 96%;
+    --secondary-foreground: 240 10% 10%;
+
+    --muted: 240 5% 96%;
+    --muted-foreground: 240 4% 46%;
+
+    --accent: 204 94% 94%;
+    --accent-foreground: 199 89% 48%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 240 6% 90%;
+    --input: 240 6% 90%;
+    --ring: 199 89% 48%;
+
+    --radius: 0.75rem;
+
+    --chat-user: 199 89% 48%;
+    --chat-bot: 240 5% 96%;
+    --chat-input: 0 0% 100%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(199 89% 48%), hsl(204 94% 94%));
+    --gradient-subtle: linear-gradient(180deg, hsl(240 20% 99%), hsl(204 100% 97%));
+    
+    --shadow-soft: 0 4px 20px -4px hsl(199 89% 48% / 0.15);
+    --shadow-medium: 0 10px 40px -10px hsl(199 89% 48% / 0.25);
+    
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .dark {
+    --background: 240 10% 10%;
+    --foreground: 240 5% 96%;
+
+    --card: 240 8% 12%;
+    --card-foreground: 240 5% 96%;
+
+    --popover: 240 8% 12%;
+    --popover-foreground: 240 5% 96%;
+
+    --primary: 199 89% 48%;
+    --primary-foreground: 240 10% 10%;
+    --primary-glow: 204 94% 94%;
+
+    --secondary: 240 5% 18%;
+    --secondary-foreground: 240 5% 96%;
+
+    --muted: 240 5% 18%;
+    --muted-foreground: 240 5% 64%;
+
+    --accent: 204 94% 94%;
+    --accent-foreground: 199 89% 48%;
+
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 240 5% 96%;
+
+    --border: 240 5% 20%;
+    --input: 240 5% 20%;
+    --ring: 199 89% 48%;
+
+    --chat-user: 199 89% 48%;
+    --chat-bot: 240 5% 18%;
+    --chat-input: 240 8% 12%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(199 89% 48%), hsl(204 94% 94%));
+    --gradient-subtle: linear-gradient(180deg, hsl(240 10% 10%), hsl(204 20% 20%));
+    
+    --shadow-soft: 0 4px 20px -4px hsl(199 89% 48% / 0.2);
+    --shadow-medium: 0 10px 40px -10px hsl(199 89% 48% / 0.3);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
